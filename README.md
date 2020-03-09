@@ -2,6 +2,9 @@
 
 An extensible 4coder startup screen.
 
+## Screenshots
+![4coder dashboard](https://user-images.githubusercontent.com/49600278/76243971-95792f00-620f-11ea-9c9e-c080118b19b3.PNG)
+
 ## Features
 
 ## Configuration
