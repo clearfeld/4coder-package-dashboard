@@ -1,4 +1,18 @@
 global Buffer_ID dashboard_buffer_id = -1;
+global Face_ID dashboard_title_face = 0;
+
+global String_Const_u8 dashboard_buffer_title = string_u8_litexpr("*dashboard*");
+
+function void
+dashboard_init_title_face(Application_Links *app) {
+    Face_ID face = get_face_id(app, 0);
+    Face_Description face_description = get_face_description(app, face);
+    face_description.parameters.pt_size *= 5;
+    dashboard_title_face = try_create_new_face(app, &face_description);
+    if(dashboard_title_face == 0) {
+        dashboard_title_face = face;
+    }
+}
 
 function void
 close_all_files(Application_Links *app) {
@@ -135,17 +149,17 @@ load_project_from_dashboard_item(Application_Links *app, String_Const_u8 file_or
     load_project(app);
 }
 
-function void
-attempt_action_for_dashboard_item(Application_Links *app) {
+function b32
+attempt_action_for_dashboard_item(Application_Links *app, i64 cursor_pos_arg) {
     Scratch_Block scratch(app);
     View_ID view_id = get_active_view(app, Access_ReadVisible);
     Buffer_ID buffer_id = view_get_buffer(app, view_id, Access_ReadVisible);
 
-    i64 cursor_pos = view_get_cursor_pos(app, view_id);
-    Buffer_Cursor cursor = view_compute_cursor(app, view_id, seek_pos(cursor_pos));
+    Buffer_Cursor cursor = view_compute_cursor(app, view_id, seek_pos(cursor_pos_arg));
 
     String_Const_u8 file_or_project = push_buffer_line(app, scratch, buffer_id, cursor.line);
-    for (i64 i = cursor.line; i > 0; --i) {
+    b32 result = false;
+    for(i64 i = cursor.line; i > 0; --i) {
         String_Const_u8 current_line = push_buffer_line(app, scratch, buffer_id, i);
         if(string_compare(current_line, string_u8_litexpr("Recent files: (r)")) == 0) {
             u64 pos = 0;
@@ -162,6 +176,7 @@ attempt_action_for_dashboard_item(Application_Links *app) {
             if(buffer != 0) {
                 view_set_buffer(app, view_id, buffer, 0);
             }
+            result = true;
             break;
         }
 
@@ -180,14 +195,18 @@ attempt_action_for_dashboard_item(Application_Links *app) {
             if(buffer != 0) {
                 view_set_buffer(app, view_id, buffer, 0);
             }
+            result = true;
             break;
         }
 
         else if(string_compare(current_line, string_u8_litexpr("Projects: (p)")) == 0) {
             load_project_from_dashboard_item(app, file_or_project);
+            result = true;
             break;
         }
     }
+
+    return result;
 }
 
 function inline void
@@ -199,28 +218,48 @@ move_to_first_item_in_group(Application_Links *app, char *group) {
 
 function void
 command_override_for_dashboard_view(Application_Links *app) {
+    View_ID view_id = get_active_view(app, Access_Always);
+
     User_Input in = {};
     for(;;) {
         in = get_next_input(app,
                             EventPropertyGroup_Any,
                             EventProperty_ViewActivation);
 
-        if(match_key_code(&in, KeyCode_R)) {
-            move_to_first_item_in_group(app, "Recent files: (r)");
+        b32 handled = true;
+        switch(in.event.kind) {
+            case InputEventKind_KeyStroke:
+            {
+                switch(in.event.key.code) {
+                    case KeyCode_R: { move_to_first_item_in_group(app, "Recent files: (r)"); } break;
+                    case KeyCode_M: { move_to_first_item_in_group(app, "Bookmarks: (m)"); } break;
+                    case KeyCode_P: { move_to_first_item_in_group(app, "Projects: (p)"); } break;
+                    case KeyCode_A: { move_to_first_item_in_group(app, "Agenda for today: (a)"); } break;
+
+                    case KeyCode_Return: {
+                        i64 cursor_pos = view_get_cursor_pos(app, view_id);
+                        attempt_action_for_dashboard_item(app, cursor_pos);
+                    } break;
+
+                    default: { handled = false; } break;
+                }
+            } break;
+
+            case InputEventKind_MouseButton:
+            {
+                switch (in.event.mouse.code){
+                    case MouseCode_Left:
+                    {
+                    } break;
+
+                    default: { handled = false; } break;
+                }
+            } break;
+
+            default: { handled = false; } break;
         }
-        else if(match_key_code(&in, KeyCode_M)) {
-            move_to_first_item_in_group(app, "Bookmarks: (m)");
-        }
-        else if(match_key_code(&in, KeyCode_P)) {
-            move_to_first_item_in_group(app, "Projects: (p)");
-        }
-        else if(match_key_code(&in, KeyCode_A)) {
-            move_to_first_item_in_group(app, "Agenda for today: (a)");
-        }
-        else if(match_key_code(&in, KeyCode_Return)) {
-            attempt_action_for_dashboard_item(app);
-        }
-        else {
+
+        if(!handled) {
             // Use the default command from the user's command map
             // that isn't intercepted above
             default_view_input_handler_dashboard(app, in);
@@ -250,11 +289,26 @@ file_dump_dashboard(Arena *arena, char *name) {
 }
 
 void
-draw_dashboard_extras(Application_Links* app, Text_Layout_ID text_layout_id, Face_ID face_id) {
+draw_dashboard_extras(Application_Links* app, Text_Layout_ID text_layout_id, Face_ID face_id, Rect_f32 rect) {
     draw_line_above_group(app, text_layout_id, face_id, "Recent files: (r)");
     draw_line_above_group(app, text_layout_id, face_id, "Bookmarks: (m)");
     draw_line_above_group(app, text_layout_id, face_id, "Projects: (p)");
     draw_line_above_group(app, text_layout_id, face_id, "Agenda for today: (a)");
+
+    Face_Metrics metrics = get_face_metrics(app, dashboard_title_face);
+    f32 adv = metrics.normal_advance;
+
+    Face_Metrics n_metrics = get_face_metrics(app, face_id);
+    f32 line_h = n_metrics.line_height;
+
+    draw_string_oriented(app,
+                         dashboard_title_face,
+                         fcolor_resolve(fcolor_id(defcolor_cursor)),
+                         string_u8_litexpr("4Coder"),
+                         V2f32((rect.x1 / 2) - (adv * 3),
+                               line_h + (line_h / 2)),
+                         0,
+                         V2f32(1.0f, 0.0f));
 }
 
 function void
@@ -270,7 +324,7 @@ CUSTOM_DOC("Open new dashboard buffer.")
 {
     View_ID vid = get_active_view(app, Access_Always);
     Buffer_Create_Flag flags = BufferCreate_AlwaysNew;
-    Buffer_ID new_buffer = create_buffer(app, string_u8_litexpr("*dashboard*"), flags);
+    Buffer_ID new_buffer = create_buffer(app, dashboard_buffer_title, flags);
 
     Scratch_Block scratch(app);
 
@@ -278,7 +332,7 @@ CUSTOM_DOC("Open new dashboard buffer.")
         dashboard_buffer_id = new_buffer;
         view_set_buffer(app, vid, new_buffer, 0);
 
-        write_text(app, string_u8_litexpr("\n\n\n\n\n\n\n\n")); // Space padding for logo eventually
+        write_text(app, string_u8_litexpr("\n\n\n\n\n\n\n\n")); // space padding for logo
 
         load_dashboard_group(app, scratch, "dashboard/recent", "Recent files: (r)\n");
         load_dashboard_group(app, scratch, "dashboard/bookmarks", "Bookmarks: (m)\n");
@@ -293,6 +347,7 @@ CUSTOM_DOC("Open new dashboard buffer.")
         goto_beginning_of_file(app);
         move_to_first_item_in_group(app, "Recent files: (r)");
 
+        dashboard_init_title_face(app);
         command_override_for_dashboard_view(app);
     }
 }
