@@ -10,19 +10,24 @@ close_all_files(Application_Links *app) {
 }
 
 function void
-draw_line_above_group(Application_Links *app, Text_Layout_ID text_layout_id, char *search_str) {
+draw_line_above_group(Application_Links *app, Text_Layout_ID text_layout_id, Face_ID face_id, char *search_str) {
     i64 buffer_size = buffer_get_size(app, dashboard_buffer_id);
     i64 pos = 0;
 
     i64 new_pos = 0;
     seek_string_insensitive_forward(app, dashboard_buffer_id, pos, 0, SCu8(search_str), &new_pos);
     if(new_pos < buffer_size) {
+        Face_Metrics metrics = get_face_metrics(app, face_id);
+        f32 line_height = metrics.line_height;
+
         Rect_f32 comment_first_char_rect = text_layout_character_on_screen(app, text_layout_id, new_pos);
+        f32 line_center = comment_first_char_rect.y0 - (line_height / 2);
+
         Rect_f32 rect = {
             comment_first_char_rect.x0,
-            comment_first_char_rect.y0 - 10,
+            line_center + 1,
             10000,
-            comment_first_char_rect.y0 - 9,
+            line_center,
         };
 
         f32 roundness = 4.f;
@@ -245,11 +250,11 @@ file_dump_dashboard(Arena *arena, char *name) {
 }
 
 void
-draw_dashboard_extras(Application_Links* app, Text_Layout_ID text_layout_id) {
-    draw_line_above_group(app, text_layout_id, "Recent files: (r)");
-    draw_line_above_group(app, text_layout_id, "Bookmarks: (m)");
-    draw_line_above_group(app, text_layout_id, "Projects: (p)");
-    draw_line_above_group(app, text_layout_id, "Agenda for today: (a)");
+draw_dashboard_extras(Application_Links* app, Text_Layout_ID text_layout_id, Face_ID face_id) {
+    draw_line_above_group(app, text_layout_id, face_id, "Recent files: (r)");
+    draw_line_above_group(app, text_layout_id, face_id, "Bookmarks: (m)");
+    draw_line_above_group(app, text_layout_id, face_id, "Projects: (p)");
+    draw_line_above_group(app, text_layout_id, face_id, "Agenda for today: (a)");
 }
 
 function void

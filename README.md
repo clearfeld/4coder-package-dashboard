@@ -13,7 +13,7 @@ An extensible 4coder startup screen.
 
 // then add the following at the end of your custom_render_buffer function
 if(buffer == dashboard_buffer_id) {
-    draw_dashboard_extras(app, text_layout_id);
+    draw_dashboard_extras(app, text_layout_id, face_id);
 }
 ```
 
