@@ -347,6 +347,9 @@ CUSTOM_DOC("Open new dashboard buffer.")
         goto_beginning_of_file(app);
         move_to_first_item_in_group(app, "Recent files: (r)");
 
+        i64 cursor_pos = view_get_cursor_pos(app, vid);
+        view_set_mark(app, vid, seek_pos(cursor_pos));
+
         dashboard_init_title_face(app);
         command_override_for_dashboard_view(app);
     }
