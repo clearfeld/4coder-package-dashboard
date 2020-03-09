@@ -11,17 +11,11 @@ close_all_files(Application_Links *app) {
 
 function void
 draw_line_above_group(Application_Links *app, Text_Layout_ID text_layout_id, char *search_str) {
-    View_ID view = get_active_view(app, Access_ReadVisible);
-    Buffer_ID buffer = view_get_buffer(app, view, Access_ReadVisible);
-    if(!buffer_exists(app, buffer)) {
-        return;
-    }
-
-    i64 buffer_size = buffer_get_size(app, buffer);
+    i64 buffer_size = buffer_get_size(app, dashboard_buffer_id);
     i64 pos = 0;
 
     i64 new_pos = 0;
-    seek_string_insensitive_forward(app, buffer, pos, 0, SCu8(search_str), &new_pos);
+    seek_string_insensitive_forward(app, dashboard_buffer_id, pos, 0, SCu8(search_str), &new_pos);
     if(new_pos < buffer_size) {
         Rect_f32 comment_first_char_rect = text_layout_character_on_screen(app, text_layout_id, new_pos);
         Rect_f32 rect = {
